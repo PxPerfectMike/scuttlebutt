@@ -1,0 +1,23 @@
+T("bare name gets the default realm", function()
+	eq(ns.Names.Normalize("bob", "ArgentDawn"), "Bob-argentdawn")
+end)
+
+T("realm spaces and apostrophes removed", function()
+	eq(ns.Names.Normalize("Bob-Argent Dawn", "X"), "Bob-argentdawn")
+	eq(ns.Names.Normalize("Bob-Kel'Thuzad", "X"), "Bob-kelthuzad")
+end)
+
+T("same player, three spellings, one key", function()
+	local a = ns.Names.Normalize("Bob", "ArgentDawn")
+	eq(ns.Names.Normalize("Bob-ArgentDawn", "Other"), a)
+	eq(ns.Names.Normalize("bob-argentdawn", "Other"), a)
+end)
+
+T("accented names untouched", function()
+	eq(ns.Names.Normalize("Zoë", "Draenor"), "Zoë-draenor")
+end)
+
+T("bad input is nil", function()
+	eq(ns.Names.Normalize("", "X"), nil)
+	eq(ns.Names.Normalize(nil, "X"), nil)
+end)

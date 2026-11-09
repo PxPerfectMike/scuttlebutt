@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Scuttlebutt Spike
+## Notes: Developer checks for Scuttlebutt. Not for release.
+## Author: PxPerfectMike
+## Version: 0.0.1
+## SavedVariables: ScuttlebuttSpikeLog
+
+Spike.lua

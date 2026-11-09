@@ -1,0 +1,24 @@
+## Interface: 16001
+## Title: Scuttlebutt
+## Notes: What the realm says about other players: likes, dislikes, tags and private notes, spread by word of mouth.
+## Author: PxPerfectMike
+## Version: 0.1.0
+## SavedVariables: ScuttlebuttDB
+## X-License: MIT
+## X-Curse-Project-ID: 1794152
+## X-Website: https://github.com/PxPerfectMike/scuttlebutt
+## IconTexture: Interface\Icons\INV_Letter_15
+
+Tunables.lua
+Names.lua
+Codec.lua
+Store.lua
+Guard.lua
+Trust.lua
+Sync.lua
+Display.lua
+Presence.lua
+Channel.lua
+PlayerFile.lua
+Menu.lua
+Core.lua
