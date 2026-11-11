@@ -56,3 +56,14 @@ end
 function Names.Short(key)
 	return (key:match("^([^%-]+)")) or key
 end
+
+-- True when `short` is `full` without its surname: "Scrow-r" for "Scrowtumwater-r". Clients up to
+-- 0.1.0 signed votes with the first name alone while the channel names the sender in full.
+function Names.IsShortFor(short, full)
+	local shortName, shortRealm = short:match("^([^%-]+)%-(.+)$")
+	local fullName, fullRealm = full:match("^([^%-]+)%-(.+)$")
+	if not shortName or not fullName or shortRealm ~= fullRealm then
+		return false
+	end
+	return #fullName > #shortName and fullName:sub(1, #shortName) == shortName
+end

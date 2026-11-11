@@ -223,6 +223,24 @@ function Store:Sample(n, random)
 	return picked
 end
 
+function Store:Remove(rec)
+	if self:Get(rec.target, rec.author) == rec then
+		self:Unindex(rec)
+	end
+end
+
+-- Moves forwarded records whose author is a short name of the client that sent them
+-- (isShort(author, via)) to that client's own key, as witnessed votes. Where the full key
+-- already has a newer vote on the same target, the short copy is just dropped.
+function Store:AdoptShortNames(isShort, now)
+	for _, rec in ipairs(self:All()) do
+		if rec.via and isShort(rec.author, rec.via) then
+			self:Remove(rec)
+			self:Put({ target = rec.target, author = rec.via, vote = rec.vote, tags = rec.tags, time = rec.time }, rec.via, math.max(now, rec.time))
+		end
+	end
+end
+
 -- Drops faded records, then the oldest past MAX_RECORDS. keep(rec) protects own votes.
 function Store:Prune(now, keep)
 	local cutoff = now - T.FADE

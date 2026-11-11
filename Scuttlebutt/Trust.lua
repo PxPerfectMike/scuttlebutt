@@ -109,6 +109,10 @@ function Trust:NoteForwarded(sender, rec, now)
 	end
 end
 
+function Trust:WasSeen(author)
+	return self.db.seen[author] ~= nil
+end
+
 -- Sync calls this whenever a player's own client sends anything.
 function Trust:NoteWitnessed(author, now)
 	self.db.seen[author] = now

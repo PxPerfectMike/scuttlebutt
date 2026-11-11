@@ -6,12 +6,12 @@ local _, ns = ...
 local Menu = {}
 ns.Menu = Menu
 
-local ICON = "Interface\\Icons\\INV_Letter_15"
-local BUTTON_RIM = 5
+local BUTTON_RIM = 2
 
 local OPTIONS = {
 	{ key = "tooltip", label = "Show scores in tooltips" },
 	{ key = "nameplates", label = "Show scores on nameplates", note = "Scores on friendly players need friendly player nameplates turned on (Options, Nameplates)." },
+	{ key = "quickVote", label = "Show like and dislike buttons next to your target", note = "On the target's nameplate when it has one, otherwise beside the target frame." },
 	{ key = "groupFinder", label = "Show scores in the group finder" },
 	{ key = "excludeGrumps", label = "Hide votes from Known Grumps" },
 	{ key = "network", label = "Share and receive votes", note = "Off: nothing is sent or received. Private notes still work." },
@@ -75,7 +75,7 @@ local function HookMenus()
 end
 
 ---------------------------------------------------------------------------
--- Minimap button (same rim placement as Starfall Trail)
+-- Minimap button (same rim placement as Starfall Trail, at 80% of the usual size)
 ---------------------------------------------------------------------------
 
 local SHAPES = {
@@ -99,7 +99,7 @@ local button, panel, category
 local checks = {}
 
 local function PlaceButton()
-	local angle = math.rad(ns.App.Settings.Get("minimapAngle") or 200)
+	local angle = math.rad(ns.App.Settings.Get("minimapAngle") or 0)
 	local x, y = math.cos(angle), math.sin(angle)
 	local quadrant = 1
 	if x < 0 then
@@ -141,13 +141,20 @@ local function ShowTooltip(self)
 		end
 	end
 	GameTooltip:AddLine(string.format("%d votes heard, %d players in the last hour", ns.App.store.count, peers), 1, 1, 1)
-	GameTooltip:AddLine("Click for settings, drag to move", 0.7, 0.7, 0.7)
+	local target = ns.QuickVote.TargetKey()
+	if target then
+		GameTooltip:AddLine("Click to open " .. (target:match("^([^%-]+)") or target) .. "'s file", 0.7, 0.7, 0.7)
+		GameTooltip:AddLine("Right-click for settings, drag to move", 0.7, 0.7, 0.7)
+	else
+		GameTooltip:AddLine("Click for settings, drag to move", 0.7, 0.7, 0.7)
+		GameTooltip:AddLine("Target a player and click to open their file", 0.7, 0.7, 0.7)
+	end
 	GameTooltip:Show()
 end
 
 local function CreateButton()
 	button = CreateFrame("Button", "ScuttlebuttMinimapButton", Minimap)
-	button:SetSize(31, 31)
+	button:SetSize(25, 25)
 	button:SetFrameStrata("MEDIUM")
 	button:SetFrameLevel(8)
 	button:RegisterForClicks("AnyUp")
@@ -155,18 +162,24 @@ local function CreateButton()
 	button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 	local background = button:CreateTexture(nil, "BACKGROUND")
 	background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-	background:SetSize(20, 20)
-	background:SetPoint("TOPLEFT", 7, -5)
+	background:SetSize(16, 16)
+	background:SetPoint("TOPLEFT", 5, -4)
 	local icon = button:CreateTexture(nil, "ARTWORK")
-	icon:SetTexture(ICON)
-	icon:SetSize(19, 19)
-	icon:SetPoint("TOPLEFT", 7, -6)
-	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	icon:SetTexture(ns.QuickVote.THUMB_UP)
+	icon:SetSize(15, 15)
+	icon:SetPoint("TOPLEFT", 5, -4)
 	local border = button:CreateTexture(nil, "OVERLAY")
 	border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-	border:SetSize(53, 53)
+	border:SetSize(42, 42)
 	border:SetPoint("TOPLEFT")
-	button:SetScript("OnClick", Menu.OpenSettings)
+	button:SetScript("OnClick", function(_, mouse)
+		local target = mouse ~= "RightButton" and ns.QuickVote.TargetKey()
+		if target then
+			ns.PlayerFile.Open(target)
+		else
+			Menu.OpenSettings()
+		end
+	end)
 	button:SetScript("OnDragStart", function(self)
 		self:SetScript("OnUpdate", DragUpdate)
 		GameTooltip:Hide()
@@ -194,7 +207,7 @@ local function CreatePanel()
 	sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
 	sub:SetWidth(560)
 	sub:SetJustifyH("LEFT")
-	sub:SetText("What the realm says about other players, spread by word of mouth. Names of voters aren't shown. Open a player's file by right-clicking them or with /scuttle <name>.")
+	sub:SetText("What the realm says about other players, spread by word of mouth. Names of voters aren't shown. Rate your target with the thumbs beside it. Open a player's file by right-clicking them, clicking the minimap button while you target them, or with /scuttle <name>.")
 	local y = -70
 	for _, option in ipairs(OPTIONS) do
 		local check = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")

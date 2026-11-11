@@ -2,7 +2,7 @@
 ## Title: Scuttlebutt
 ## Notes: What the realm says about other players: likes, dislikes, tags and private notes, spread by word of mouth.
 ## Author: PxPerfectMike
-## Version: 0.1.0
+## Version: 0.1.1
 ## SavedVariables: ScuttlebuttDB
 ## X-License: MIT
 ## X-Curse-Project-ID: 1794152
@@ -20,5 +20,6 @@ Display.lua
 Presence.lua
 Channel.lua
 PlayerFile.lua
+QuickVote.lua
 Menu.lua
 Core.lua

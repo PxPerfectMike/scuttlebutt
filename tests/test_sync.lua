@@ -350,3 +350,30 @@ T("cleared own votes are not refreshed", function()
 	h.Advance(1)
 	eq(h.env.store:Get("Bob-r", "Me-r").time, NOW - 15 * DAY)
 end)
+
+-- Clients up to 0.1.0 signed votes with the first name alone ("Scrow") while the channel names
+-- the sender in full ("Scrowtumwater").
+T("a 0.1.0 client's short-name vote counts as its own", function()
+	local h = client("Me-r")
+	h.sync:OnMessage("Scrowtumwater-r", batch(rec("Bob-r", "Scrow-r", 1)))
+	local r = h.env.store:Get("Bob-r", "Scrowtumwater-r")
+	ok(r and r.witnessed and r.vote == 1, "stored as the sender's witnessed vote")
+	eq(h.env.store:Get("Bob-r", "Scrow-r"), nil)
+end)
+
+T("a 0.1.0 client sending many votes is not blocked as a forger", function()
+	local h = client("Me-r")
+	for i = 1, 40 do
+		h.sync:OnMessage("Scrowtumwater-r", batch(rec("T" .. i .. "-r", "Scrow-r", 1)))
+	end
+	eq(h.env.trust:SenderBlocked("Scrowtumwater-r", NOW), false)
+end)
+
+T("a short name that sends for itself is left alone", function()
+	local h = client("Me-r")
+	h.sync:OnMessage("Scrow-r", batch(rec("Ann-r", "Scrow-r", 1)))
+	h.sync:OnMessage("Scrowtumwater-r", batch(rec("Bob-r", "Scrow-r", 1)))
+	local r = h.env.store:Get("Bob-r", "Scrow-r")
+	ok(r and not r.witnessed, "kept as a forward of the real Scrow's vote")
+	eq(h.env.store:Get("Bob-r", "Scrowtumwater-r"), nil)
+end)

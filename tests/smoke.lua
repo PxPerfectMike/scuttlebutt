@@ -22,6 +22,9 @@ local function Any(name)
 				if k == "GetCenter" then
 					return 100, 100
 				end
+				if k == "GetFrameLevel" then
+					return 5
+				end
 				if k == "GetID" then
 					return 1
 				end
@@ -49,8 +52,11 @@ function CreateFrame(kind, name)
 			scripts.OnEvent(self, e, ...)
 		end
 	end)
-	rawset(f, "Click", function(self)
-		scripts.OnClick(self)
+	rawset(f, "Click", function(self, mouse)
+		scripts.OnClick(self, mouse)
+	end)
+	rawset(f, "Script", function(_, s)
+		return scripts[s]
 	end)
 	rawset(f, "IsShown", function()
 		return true
@@ -88,13 +94,20 @@ function UnitName(unit)
 	end
 	return "Bob"
 end
-function GetUnitName()
+-- Forever characters have a surname that UnitName leaves out.
+function GetUnitName(unit)
+	if unit == "player" then
+		return "Tester Tumwater"
+	end
 	return "Bob"
 end
 function UnitLevel()
 	return 20
 end
 function UnitIsPlayer()
+	return true
+end
+function UnitIsUnit()
 	return true
 end
 function IsInInstance()
@@ -192,6 +205,23 @@ C_NamePlate = {
 }
 SlashCmdList = {}
 
+-- Saved data from 0.1.0, when the key was the first name alone: one like on Cy, a like from
+-- another 0.1.0 player that reached us signed with his first name, and a forger block it caused.
+ScuttlebuttDB = {
+	version = 1,
+	trust = { blocked = { ["Dandelion-argentdawn"] = clock + 3600 } },
+	created = 1,
+	settings = {},
+	store = {
+		records = {
+			["Cy-argentdawn"] = {
+				["Tester-argentdawn"] = { target = "Cy-argentdawn", author = "Tester-argentdawn", vote = 1, tags = { 2 }, time = clock - 100, witnessed = true },
+				["Dan-argentdawn"] = { target = "Cy-argentdawn", author = "Dan-argentdawn", vote = 1, tags = {}, time = clock - 50, witnessed = false, via = "Dandelion-argentdawn" },
+			},
+		},
+	},
+}
+
 -- Load the addon in .toc order.
 local ns = {}
 for _, file in ipairs(ADDON_FILES) do
@@ -210,7 +240,15 @@ for _ = 1, 3 do
 		fn()
 	end
 end
-assert(ns.App.me == "Tester-argentdawn", "me = " .. tostring(ns.App.me))
+assert(ns.App.me == "Testertumwater-argentdawn", "me = " .. tostring(ns.App.me))
+-- The old first-name key's like moved to the full key; the old copy is cleared.
+local moved = ns.App.store:Get("Cy-argentdawn", "Testertumwater-argentdawn")
+assert(moved and moved.vote == 1 and moved.tags[1] == 2, "legacy vote not moved")
+assert(ns.App.store:Get("Cy-argentdawn", "Tester-argentdawn") == nil, "legacy vote not removed")
+local dan = ns.App.store:Get("Cy-argentdawn", "Dandelion-argentdawn")
+assert(dan and dan.witnessed and ns.App.store:Get("Cy-argentdawn", "Dan-argentdawn") == nil, "short-name forward not adopted")
+assert(not ns.App.trust:SenderBlocked("Dandelion-argentdawn", clock), "upgrade should lift forger blocks")
+assert(ns.App.guard:IsMine("Tester-argentdawn"), "legacy key should count as this account")
 
 -- Slash commands.
 local slash = SlashCmdList.SCUTTLEBUTT
@@ -224,7 +262,7 @@ for _, f in ipairs(frames) do
 end
 local good, reason = ns.App.Vote("Bob-argentdawn", 1, { 1, 5 })
 assert(good, "vote failed: " .. tostring(reason))
-assert(ns.App.store:Get("Bob-argentdawn", "Tester-argentdawn").vote == 1)
+assert(ns.App.store:Get("Bob-argentdawn", ns.App.me).vote == 1)
 ns.PlayerFile.Refresh()
 ns.App.store:SetNote("Bob-argentdawn", "Great healer")
 
@@ -235,6 +273,38 @@ tooltipHook(setmetatable({
 	end,
 }, { __index = Any("Tooltip") }))
 menuHooks.MENU_UNIT_PLAYER(nil, Any("Root"), { name = "Bob", server = "ArgentDawn" })
+
+-- Quick vote buttons: a target with a plate, a like, taking it back, right-click, and the minimap
+-- button opening the target's file.
+for _, f in ipairs(frames) do
+	f:Fire("PLAYER_TARGET_CHANGED")
+end
+for _, fn in ipairs(timers) do
+	fn()
+end
+timers = {}
+assert(ns.QuickVote.TargetKey() == "Bob-argentdawn", "target key")
+local quickLike
+for _, f in ipairs(frames) do
+	if rawget(f, "value") == 1 then
+		quickLike = f
+	end
+end
+assert(quickLike, "no quick like button")
+ns.App.Vote("Bob-argentdawn", 0, { 1, 5 })
+quickLike:Click("LeftButton")
+local rec = ns.App.store:Get("Bob-argentdawn", ns.App.me)
+assert(rec.vote == 1 and #rec.tags == 2, "quick like lost the tags or did not vote")
+clock = clock + 1
+quickLike:Click("LeftButton")
+assert(ns.App.store:Get("Bob-argentdawn", ns.App.me).vote == 0, "second click should take the like back")
+quickLike:Click("RightButton")
+quickLike:Script("OnEnter")(quickLike)
+_G.ScuttlebuttMinimapButton:Click("LeftButton")
+_G.ScuttlebuttMinimapButton:Click("RightButton")
+_G.ScuttlebuttMinimapButton:Script("OnEnter")(_G.ScuttlebuttMinimapButton)
+slash("quickvote")
+slash("quickvote")
 
 -- Network: pump sends our summary and the vote; a message from someone else is read.
 ns.App.sync:Start()

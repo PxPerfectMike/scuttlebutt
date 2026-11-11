@@ -14,7 +14,8 @@ local DEFAULTS = {
 	nameplates = true,
 	excludeGrumps = false,
 	network = true,
-	minimapAngle = 200,
+	quickVote = true,
+	minimapAngle = 0,
 	minimapHidden = false,
 }
 
@@ -109,6 +110,8 @@ function App.Vote(key, vote, tags)
 		App.guard:Record(vote, now)
 	end
 	ns.Display.OnChange()
+	ns.QuickVote.OnChange(key)
+	ns.PlayerFile.OnChange(key)
 	return true
 end
 
@@ -121,9 +124,8 @@ local tickers = {}
 
 local function Changed(target)
 	ns.Display.OnChange()
-	if ns.PlayerFile then
-		ns.PlayerFile.OnChange(target)
-	end
+	ns.PlayerFile.OnChange(target)
+	ns.QuickVote.OnChange(target)
 end
 
 function App.NetworkActive()
@@ -178,7 +180,22 @@ end
 local function SetupData()
 	ScuttlebuttDB = ScuttlebuttDB or {}
 	local db = ScuttlebuttDB
-	db.version = 1
+	-- Version 2 moved the minimap button to the right side of the minimap and brought it back for
+	-- everyone who had hidden it, since it now opens your target's file.
+	if db.version and db.version < 2 then
+		db.settings = db.settings or {}
+		db.settings.minimapAngle = nil
+		db.settings.minimapHidden = nil
+	end
+	-- Version 3 fixed our own key (see Start). Before it, every client's own votes looked like
+	-- forwards of a player who never sends, so the forger check blocked honest players; drop that
+	-- bookkeeping and the blocks it caused.
+	if db.version and db.version < 3 and db.trust then
+		db.trust.forwards = nil
+		db.trust.blocked = nil
+		App.upgradedKeys = true
+	end
+	db.version = 3
 	db.created = db.created or Now()
 	db.settings = db.settings or {}
 	db.store = db.store or {}
@@ -188,13 +205,52 @@ local function SetupData()
 	return db
 end
 
+-- Moves our votes saved under the old first-name key to our full key. Nothing is sent for the
+-- old key: updated clients file its copies under the full key themselves (Store:AdoptShortNames).
+local function MoveOwnVotes(from, to)
+	local now = Now()
+	local moving = {}
+	for _, rec in ipairs(App.store:ByAuthor(from)) do
+		moving[#moving + 1] = rec
+	end
+	for _, rec in ipairs(moving) do
+		App.store:Remove(rec)
+		if (rec.vote ~= 0 or #rec.tags > 0) and not App.store:Get(rec.target, to) then
+			App.sync:Vote({ target = rec.target, author = to, vote = rec.vote, tags = rec.tags, time = now })
+		end
+	end
+end
+
+-- Sends our votes again with a fresh time, so they beat any older copy filed under our key.
+local function RestampOwnVotes()
+	local now = Now()
+	local own = {}
+	for _, rec in ipairs(App.store:ByAuthor(App.me)) do
+		if rec.vote ~= 0 or #rec.tags > 0 then
+			own[#own + 1] = rec
+		end
+	end
+	for _, rec in ipairs(own) do
+		App.sync:Vote({ target = rec.target, author = App.me, vote = rec.vote, tags = rec.tags, time = now })
+	end
+end
+
 local function Start()
 	local db = SetupData()
 	App.realm = GetNormalizedRealmName() or GetRealmName()
-	App.me = Names.Normalize(UnitName("player"), App.realm)
+	-- On Forever, characters have a surname: UnitName gives "Scrow" but chat senders, nameplates
+	-- and every other player's key use the full "Scrow Tumwater". Our key has to match what other
+	-- clients see as the sender, or our votes reach them as unconfirmed forwards.
+	App.me = Names.Normalize(GetUnitName("player", true) or UnitName("player"), App.realm)
 	App.store = ns.Store.New(db.store)
 	App.guard = ns.Guard.New(db.guard)
 	App.guard:AddCharacter(App.me)
+	-- Versions up to 0.1.0 used the first name alone. Treat that key as this account's, so its
+	-- votes are moved below and nobody can vote on the old name as someone else.
+	local legacy = Names.Normalize(UnitName("player"), App.realm)
+	if legacy and legacy ~= App.me then
+		App.guard:AddCharacter(legacy)
+	end
 	App.trust = ns.Trust.New(App.store, db.trust)
 	-- Own votes never fade while they say something; fully cleared ones fade like the rest.
 	App.store:Prune(Now(), function(rec)
@@ -215,9 +271,21 @@ local function Start()
 		end,
 		onChange = Changed,
 	})
+	if legacy and legacy ~= App.me then
+		MoveOwnVotes(legacy, App.me)
+	end
+	App.store:AdoptShortNames(function(author, via)
+		return Names.IsShortFor(author, via) and not App.trust:WasSeen(author)
+	end, Now())
+	if App.upgradedKeys then
+		-- An unreleased build sent "cleared" copies of moved votes in the same second as the moved
+		-- votes themselves; a fresh time makes sure the real vote wins everywhere.
+		RestampOwnVotes()
+	end
 	ns.Presence.Init(db.presence)
 	ns.Display.Init()
 	ns.Menu.Init()
+	ns.QuickVote.Init()
 	App.OnSettingChanged(function(name, value)
 		if name == "network" then
 			if value then
@@ -228,6 +296,7 @@ local function Start()
 		elseif name == "nameplates" or name == "excludeGrumps" then
 			ns.Display.RefreshPlates()
 		end
+		ns.QuickVote.Refresh()
 		ns.Menu.Refresh()
 	end)
 	App.StartNetwork()
@@ -251,6 +320,7 @@ end)
 local TOGGLES = {
 	tooltip = { "tooltip", "Tooltip scores" },
 	nameplates = { "nameplates", "Nameplate scores" },
+	quickvote = { "quickVote", "Like and dislike buttons next to your target" },
 	groupfinder = { "groupFinder", "Group finder scores" },
 	grumps = { "excludeGrumps", "Hide votes from Known Grumps" },
 	network = { "network", "Share and receive votes" },
@@ -291,7 +361,7 @@ SlashCmdList.SCUTTLEBUTT = function(arg)
 		App.Settings.Set(setting, not App.Settings.Get(setting))
 		Print(label .. ": " .. (App.Settings.Get(setting) and "on" or "off"))
 	elseif word == "help" then
-		Print("/scuttle <name> opens a player's file. /scuttle status, tooltip, nameplates, groupfinder, grumps, network.")
+		Print("/scuttle <name> opens a player's file. /scuttle status, tooltip, nameplates, quickvote, groupfinder, grumps, network.")
 	else
 		local key = Names.Normalize(arg, App.realm)
 		if key then

@@ -17,6 +17,7 @@ local REASONS = {
 	offline = "Sharing is off. Turn it on with /scuttle network.",
 	tags = "Up to 3 tags per player.",
 }
+PlayerFile.REASONS = REASONS
 
 local WIDTH, HEIGHT = 380, 470
 local frame, key

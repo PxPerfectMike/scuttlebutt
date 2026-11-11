@@ -293,6 +293,11 @@ function Sync:OnRecords(sender, kind, recs, now)
 	local store, trust = env.store, env.trust
 	local blocked = trust:SenderBlocked(sender, now)
 	for _, rec in ipairs(recs) do
+		-- A 0.1.0 client signs its own votes with its first name alone. Count them as the
+		-- sender's, unless that short name is a player of its own who has sent us something.
+		if kind ~= "D" and rec.author ~= sender and ns.Names.IsShortFor(rec.author, sender) and not trust:WasSeen(rec.author) then
+			rec = { target = rec.target, author = sender, vote = rec.vote, tags = rec.tags, time = rec.time }
+		end
 		if rec.author == env.me then
 			self:Deny(rec, now)
 		elseif kind == "D" then

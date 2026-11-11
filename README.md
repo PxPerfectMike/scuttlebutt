@@ -12,8 +12,12 @@ every score shows what has reached you.
 - **Nameplates:** the score under player names (friendly player nameplates must be on to see allies).
 - **Group finder:** the score next to applicants and group leaders, where the client's group finder
   allows it.
-- **Player file:** right-click a player and choose Scuttlebutt, or type `/scuttle <name>`. Like,
-  dislike, pick up to 3 tags and write a private note.
+- **Quick vote:** target a player and their score shows up beside them with a green thumbs up
+  (like) and a red thumbs down (dislike): on their nameplate when it has one, otherwise beside the
+  target frame. Click a thumb to vote, click it again to take it back, and right-click either one to
+  open their file.
+- **Player file:** right-click a player and choose Scuttlebutt, click the minimap button while you
+  target them, or type `/scuttle <name>`. Like, dislike, pick up to 3 tags and write a private note.
 
 ## How word of mouth works
 
@@ -47,8 +51,10 @@ someone running a modified addon could read them. Private notes never leave your
 
 ## Commands
 
+The minimap button (right side of the minimap; drag to move) opens your target's file, or the
+settings when you have no player targeted; right-click it for the settings.
 `/scuttle` (or `/scuttlebutt`) opens the settings. `/scuttle <name>` opens a player's file.
-`/scuttle status`, and the toggles `tooltip`, `nameplates`, `groupfinder`, `grumps`, `network`.
+`/scuttle status`, and the toggles `tooltip`, `nameplates`, `quickvote`, `groupfinder`, `grumps`, `network`.
 
 ## Development
 
